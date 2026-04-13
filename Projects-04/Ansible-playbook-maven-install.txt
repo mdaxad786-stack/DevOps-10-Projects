@@ -1,0 +1,52 @@
+- name: Install Apache Maven
+  hosts: 172.31.41.76
+  become: yes
+
+  vars:
+    maven_version: "3.9.9"
+    maven_download_url: "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz"
+    maven_install_dir: "/opt/maven"
+
+  tasks:
+
+    - name: Ensure /opt directory exists
+      file:
+        path: /opt
+        state: directory
+        mode: '0755'
+
+    - name: Download Maven
+      get_url:
+        url: "{{ maven_download_url }}"
+        dest: "/tmp/apache-maven-{{ maven_version }}.tar.gz"
+
+    - name: Extract Maven to /opt
+      unarchive:
+        src: "/tmp/apache-maven-{{ maven_version }}.tar.gz"
+        dest: /opt
+        remote_src: yes
+    
+    - name: Rename Maven directory
+      command: mv /opt/apache-maven-{{ maven_version }} {{ maven_install_dir }}
+      args:
+        creates: "{{ maven_install_dir }}"
+
+
+    - name: Add environment variables to .bash_profile
+      ansible.builtin.blockinfile:
+        path: "/home/{{ ansible_user_id }}/.bash_profile"
+        block: |
+          # Java and Maven Setup
+          JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto.x86_64
+          M2_HOME=/opt/maven
+          M2=/opt/maven/bin
+          PATH=$PATH:$HOME/bin:$JAVA_HOME:$M2_HOME:$M2
+        create: yes
+        owner: "{{ ansible_user_id }}"
+        mode: '0644'
+
+    - name: Apply environment variables
+      ansible.builtin.shell: |
+        source ~/.bash_profile
+      args:
+        executable: /bin/bash

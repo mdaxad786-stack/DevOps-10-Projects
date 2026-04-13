@@ -1,0 +1,91 @@
+---
+- name: Build and Deploy Taxi Booking App
+  hosts: 172.31.14.140
+  become: yes
+
+  vars:
+    tomcat_version: 9.0.85
+    tomcat_dir: /opt/tomcat
+
+  tasks:
+
+  - name: Install required packages
+    yum:
+      name:
+        - java-1.8.0-openjdk-devel
+        - git
+        - maven
+        - wget
+      state: present
+
+  - name: Remove old project
+    file:
+      path: /tmp/cab-booking
+      state: absent
+
+  - name: Clone repository
+    git:
+      repo: https://github.com/mdaxad786-stack/cab-booking.git
+      dest: /tmp/cab-booking
+
+  - name: Update Maven WAR plugin to new version
+    lineinfile:
+      path: /tmp/cab-booking/taxi-booking/pom.xml
+      insertafter: "<plugins>"
+      line: |
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-war-plugin</artifactId>
+          <version>3.3.2</version>
+        </plugin>
+
+  - name: Build WAR
+    command: mvn clean package -DskipTests
+    args:
+      chdir: /tmp/cab-booking
+
+  - name: Create Tomcat group
+    group:
+      name: tomcat
+
+  - name: Create Tomcat user
+    user:
+      name: tomcat
+      group: tomcat
+      home: "{{ tomcat_dir }}"
+      shell: /bin/nologin
+
+  - name: Create Tomcat directory
+    file:
+      path: "{{ tomcat_dir }}"
+      state: directory
+
+  - name: Download Tomcat
+    get_url:
+      url: https://archive.apache.org/dist/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz
+      dest: /tmp/tomcat.tar.gz
+
+  - name: Extract Tomcat
+    unarchive:
+      src: /tmp/tomcat.tar.gz
+      dest: "{{ tomcat_dir }}"
+      remote_src: yes
+      extra_opts: [--strip-components=1]
+
+  - name: Set permissions
+    file:
+      path: "{{ tomcat_dir }}"
+      owner: tomcat
+	  group: tomcat
+      recurse: yes
+
+  - name: Copy WAR to Tomcat
+    copy:
+      src: /tmp/cab-booking/taxi-booking/target/taxi-booking-1.0.1.war
+      dest: "{{ tomcat_dir }}/webapps/taxi-booking.war"
+      remote_src: yes
+
+  - name: Start Tomcat
+    shell: "{{ tomcat_dir }}/bin/startup.sh"
+  
+  	  

@@ -1,0 +1,37 @@
+---
+- name: Fix Tomcat Manager Access
+  hosts: 172.31.14.140
+  become: yes
+
+  tasks:
+
+  - name: Remove manager IP restriction
+    lineinfile:
+      path: /opt/tomcat/webapps/manager/META-INF/context.xml
+      regexp: 'RemoteAddrValve'
+      state: absent
+
+  - name: Remove host-manager IP restriction
+    lineinfile:
+      path: /opt/tomcat/webapps/host-manager/META-INF/context.xml
+      regexp: 'RemoteAddrValve'
+      state: absent
+
+  - name: Add Tomcat manager user
+    blockinfile:
+      path: /opt/tomcat/conf/tomcat-users.xml
+      insertbefore: '</tomcat-users>'
+      block: |
+        <role rolename="manager-gui"/>
+        <role rolename="manager-script"/>
+        <role rolename="manager-jmx"/>
+        <role rolename="manager-status"/>
+        <user username="admin" password="admin123" roles="manager-gui,manager-script,manager-jmx,manager-status"/>
+
+  - name: Restart Tomcat
+    shell: |
+      /opt/tomcat/bin/shutdown.sh
+      sleep 5
+      /opt/tomcat/bin/startup.sh
+                                                                                                                                                     
+  

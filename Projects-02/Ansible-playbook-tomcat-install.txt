@@ -1,0 +1,108 @@
+---
+- name: Install Apache and Tomcat on RedHat
+  hosts: 172.31.14.140
+  become: yes
+
+  vars:
+    tomcat_version: 9.0.85
+    tomcat_dir: /opt/tomcat
+
+  tasks:
+
+  - name: Install Java
+    yum:
+      name: java-11-amazon-corretto-headless
+      state: present
+
+  - name: Install Apache Web Server
+    yum:
+      name: httpd
+      state: present
+
+  - name: Create Tomcat group
+    group:
+      name: tomcat
+
+  - name: Create Tomcat user
+    user:
+      name: tomcat
+
+  - name: Create Tomcat user
+    user:
+      name: tomcat
+      group: tomcat
+      home: "{{ tomcat_dir }}"
+      shell: /bin/nologin
+
+  - name: Create Tomcat directory
+    file:
+      path: "{{ tomcat_dir }}"
+      state: directory
+      owner: tomcat
+      group: tomcat
+
+  - name: Download Tomcat
+    get_url:
+      url: https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.85/bin/apache-tomcat-9.0.85.tar.gz
+      dest: /tmp/tomcat.tar.gz
+
+  - name: Extract Tomcat
+    unarchive:
+      src: /tmp/tomcat.tar.gz
+      dest: "{{ tomcat_dir }}"
+      remote_src: yes
+      extra_opts: [--strip-components=1]
+
+  - name: Change ownership
+    file:
+      path: "{{ tomcat_dir }}"
+      owner: tomcat
+      group: tomcat
+      recurse: yes
+
+  - name: Create Tomcat systemd service
+    copy:
+      dest: /etc/systemd/system/tomcat.service
+      content: |
+        [Unit]
+        Description=Apache Tomcat
+        After=network.target
+
+        [Service]
+        Type=forking
+
+        User=tomcat
+        Group=tomcat
+
+        Environment=JAVA_HOME=/usr/lib/jvm/jre
+        Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+        Environment=CATALINA_HOME=/opt/tomcat
+        Environment=CATALINA_BASE=/opt/tomcat
+
+        ExecStart=/opt/tomcat/bin/startup.sh
+        ExecStop=/opt/tomcat/bin/shutdown.sh
+
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: Reload systemd
+    command: systemctl daemon-reload
+
+  - name: Start Tomcat
+    service:
+      name: tomcat
+      state: started
+      enabled: yes
+
+  - name: Start Apache Web Server
+    service:
+      name: httpd
+      state: started
+      enabled: yes
+
+  - name: Deploy WAR file
+    get_url:
+      url: https://github.com/mdaxad786-stack/cab-booking.git
+      dest: /opt/tomcat/webapps/
